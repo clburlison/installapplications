@@ -250,63 +250,66 @@ def main():
         downloadfile(json_data)
         time.sleep(0.5)
 
-    # Load up file to grab all the packages.
+    # Load up file to grab all the items.
     iajson = json.loads(open(jsonpath).read())
 
     # Set the stages
     stages = ['prestage', 'stage1', 'stage2']
 
-    # Get the number of packages for DEPNotify
+    # Get the number of items for DEPNotify
     if opts.depnotify:
-        numberofpackages = 0
+        numberofitems = 0
         for stage in stages:
             if stage == 'prestage':
-                iaslog('Skipping DEPNotify package countdue to prestage.')
+                iaslog('Skipping DEPNotify item countdue to prestage.')
             else:
-                numberofpackages += int(len(iajson[stage]))
+                numberofitems += int(len(iajson[stage]))
         # Mulitply by two for download and installation status messages
-        deplog('Command: Determinate: %d' % (numberofpackages*2))
+        deplog('Command: Determinate: %d' % (numberofitems*2))
 
     # Process all stages
     for stage in stages:
         iaslog('Beginning %s' % (stage))
-        # Loop through the packages and download/install them.
-        for package in iajson[stage]:
-            # Set the filepath and hash
-            path = package['file']
-            hash = package['hash']
+        # Loop through the items and download/install them.
+        for item in iajson[stage]:
+            # Set the filepath, hashkey, and cmd
+            # path = item['file']
+            # hashkey = item['hash']
+            path = item.get('file', None)
+            hashkey = item.get('hash', None)
+            cmd = item.get('cmd', None)
             # Check if the file already exists and matches the expected hash.
-            while not (os.path.isfile(path) and hash == gethash(path)):
+            while not (os.path.isfile(path) and hashkey == gethash(path)):
                 # Check if additional headers are being passed and add them
                 # to the dictionary.
                 if opts.headers:
-                    package.update({'additional_headers': headers})
+                    item.update({'additional_headers': headers})
                 # Download the file once:
-                iaslog('Starting download: %s' % (package['url']))
+                iaslog('Starting download: %s' % (item['url']))
                 if opts.depnotify:
                     if stage == 'prestage':
                         iaslog(
                             'Skipping DEPNotify notification due to prestage.')
                     else:
-                        deplog('Status: Downloading %s' % (package['name']))
-                downloadfile(package)
+                        deplog('Status: Downloading %s' % (item['name']))
+                downloadfile(item)
                 # Wait half a second to process
                 time.sleep(0.5)
                 # Check the files hash and redownload until it's correct.
                 # Bail after three times and log event.
                 failsleft = 3
-                while not hash == gethash(path):
+                while not hashkey == gethash(path):
                     iaslog('Hash failed for %s - received: %s expected: %s' % (
-                           package['name'], gethash(path), hash))
-                    downloadfile(package)
+                           item['name'], gethash(path), hashkey))
+                    downloadfile(item)
                     failsleft -= 1
                     if failsleft == 0:
                         iaslog('Hash retry failed for %s: exiting!' %
-                               package['name'])
+                               item['name'])
                         sys.exit(1)
                 # Time to install.
                 iaslog('Hash validated - received: %s expected: %s' % (
-                       gethash(path), hash))
+                       gethash(path), hashkey))
                 # On Stage 1, we want to wait until we are actually in the
                 # user's session. Stage 1 is ideally used for installing files
                 # you need immediately.
@@ -328,18 +331,18 @@ def main():
                                                  depnotifypath])
                             else:
                                 continue
-                iaslog('Installing %s from %s' % (package['name'], path))
+                iaslog('Installing %s from %s' % (item['name'], path))
                 if opts.depnotify:
                     if stage == 'prestage':
                         iaslog(
                             'Skipping DEPNotify notification due to prestage.')
                     else:
-                        deplog('Status: Installing: %s' % (package['name']))
-                        deplog('Command: Notification: %s' % (package['name']))
+                        deplog('Status: Installing: %s' % (item['name']))
+                        deplog('Command: Notification: %s' % (item['name']))
                 # We now check the install return code status since some
                 # packages like to delete themselves after they run. Why would
                 # you do this developers? Palo Alto Networks / GlobalProtect
-                installerstatus = installpackage(package['file'])
+                installerstatus = installpackage(item['file'])
                 if installerstatus == 0:
                     break
 
